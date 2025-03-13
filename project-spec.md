@@ -66,6 +66,7 @@ Motivated individuals who value maintaining relationships in both professional a
 ## Database Schema
 
 ### Users Table
+Part of auth schema in Supabase.
 ```
 users (
   id: uuid (primary key)

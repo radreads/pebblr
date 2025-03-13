@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, FormEvent } from "react"
 import { Bell, CheckCircle, Clock, Users, ArrowRight, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,11 +13,59 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuth } from "@/hooks/useAuth"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isSignupOpen, setIsSignupOpen] = useState(false)
   const [isPulsing, setIsPulsing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false)
+  
+  const router = useRouter()
+  const { signIn, signUp, error } = useAuth()
+
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState("")
+  const [loginPassword, setLoginPassword] = useState("")
+
+  // Signup form state
+  const [signupEmail, setSignupEmail] = useState("")
+  const [signupPassword, setSignupPassword] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    
+    try {
+      await signIn(loginEmail, loginPassword)
+      setIsLoginOpen(false)
+      router.push("/dashboard")
+      toast.success("Successfully logged in!")
+    } catch (error) {
+      toast.error("Failed to log in. Please check your credentials.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSignup = async (e: FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      await signUp(signupEmail, signupPassword)
+      setIsSignupOpen(false)
+      toast.success("Successfully signed up! Please check your email to verify your account.")
+    } catch (error) {
+      toast.error("Failed to sign up. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-noise">
@@ -516,42 +564,67 @@ export default function LandingPage() {
               Enter your email and password to access your Pebblr account.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email" className="text-cyan-900">
-                Email
-              </Label>
-              <Input id="email" type="email" placeholder="you@example.com" className="border-gray-200" />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-cyan-900">
-                  Password
+          <form onSubmit={handleLogin}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="email" className="text-cyan-900">
+                  Email
                 </Label>
-                <a href="#" className="text-sm text-cyan-700 hover:text-cyan-900">
-                  Forgot password?
-                </a>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="you@example.com" 
+                  className="border-gray-200"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  required 
+                />
               </div>
-              <Input id="password" type="password" placeholder="••••••••" className="border-gray-200" />
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-cyan-900">
+                    Password
+                  </Label>
+                  <a href="#" className="text-sm text-cyan-700 hover:text-cyan-900">
+                    Forgot password?
+                  </a>
+                </div>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="border-gray-200"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  required
+                />
+              </div>
             </div>
-          </div>
-          <DialogFooter className="sm:justify-between">
-            <div className="text-sm text-cyan-700">
-              Don't have an account?{" "}
-              <button
-                className="text-cyan-900 font-medium hover:underline"
-                onClick={() => {
-                  setIsLoginOpen(false)
-                  setIsSignupOpen(true)
-                }}
+            <DialogFooter className="sm:justify-between">
+              <div className="text-sm text-cyan-700">
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  className="text-cyan-900 font-medium hover:underline"
+                  onClick={() => {
+                    setIsLoginOpen(false)
+                    setSignupEmail("")
+                    setSignupPassword("")
+                    setIsSignupOpen(true)
+                  }}
+                >
+                  Sign up
+                </button>
+              </div>
+              <Button 
+                type="submit" 
+                className="bg-cyan-700 hover:bg-cyan-800 text-white"
+                disabled={isLoading}
               >
-                Sign up
-              </button>
-            </div>
-            <Button type="button" className="bg-cyan-700 hover:bg-cyan-800 text-white">
-              Log in
-            </Button>
-          </DialogFooter>
+                {isLoading ? "Logging in..." : "Log in"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -564,52 +637,92 @@ export default function LandingPage() {
               Join Pebblr today and start strengthening your relationships.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="first-name" className="text-cyan-900">
-                  First name
-                </Label>
-                <Input id="first-name" placeholder="John" className="border-gray-200" />
+          <form onSubmit={handleSignup}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="first-name" className="text-cyan-900">
+                    First name
+                  </Label>
+                  <Input 
+                    id="first-name" 
+                    placeholder="John" 
+                    className="border-gray-200"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="last-name" className="text-cyan-900">
+                    Last name
+                  </Label>
+                  <Input 
+                    id="last-name" 
+                    placeholder="Doe" 
+                    className="border-gray-200"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="last-name" className="text-cyan-900">
-                  Last name
+                <Label htmlFor="signup-email" className="text-cyan-900">
+                  Email
                 </Label>
-                <Input id="last-name" placeholder="Doe" className="border-gray-200" />
+                <Input 
+                  id="signup-email" 
+                  type="email" 
+                  placeholder="you@example.com" 
+                  className="border-gray-200"
+                  value={signupEmail}
+                  onChange={(e) => setSignupEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="signup-password" className="text-cyan-900">
+                  Password
+                </Label>
+                <Input 
+                  id="signup-password" 
+                  type="password" 
+                  placeholder="Create a password" 
+                  className="border-gray-200"
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+                <p className="text-xs text-cyan-700">Must be at least 8 characters</p>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signup-email" className="text-cyan-900">
-                Email
-              </Label>
-              <Input id="signup-email" type="email" placeholder="you@example.com" className="border-gray-200" />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="signup-password" className="text-cyan-900">
-                Password
-              </Label>
-              <Input id="signup-password" type="password" placeholder="Create a password" className="border-gray-200" />
-              <p className="text-xs text-cyan-700">Must be at least 8 characters</p>
-            </div>
-          </div>
-          <DialogFooter className="sm:justify-between">
-            <div className="text-sm text-cyan-700">
-              Already have an account?{" "}
-              <button
-                className="text-cyan-900 font-medium hover:underline"
-                onClick={() => {
-                  setIsSignupOpen(false)
-                  setIsLoginOpen(true)
-                }}
+            <DialogFooter className="sm:justify-between">
+              <div className="text-sm text-cyan-700">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  className="text-cyan-900 font-medium hover:underline"
+                  onClick={() => {
+                    setIsSignupOpen(false)
+                    setLoginEmail("")
+                    setLoginPassword("")
+                    setIsLoginOpen(true)
+                  }}
+                >
+                  Log in
+                </button>
+              </div>
+              <Button 
+                type="submit" 
+                className="bg-cyan-700 hover:bg-cyan-800 text-white"
+                disabled={isLoading}
               >
-                Log in
-              </button>
-            </div>
-            <Button type="button" className="bg-cyan-700 hover:bg-cyan-800 text-white">
-              Create account
-            </Button>
-          </DialogFooter>
+                {isLoading ? "Creating account..." : "Create account"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

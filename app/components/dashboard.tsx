@@ -20,71 +20,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { DatePicker } from "@/components/ui/date-picker"
 import Link from "next/link"
+import { toast } from "sonner"
+import { useAuth } from "@/hooks/useAuth"
+import { useRouter } from "next/navigation"
+import { TimeControls } from "@/app/components/debug/TimeControls"
 
-// Mock data for demonstration
-const contacts = [
-  {
-    id: "1",
-    name: "Alex Johnson",
-    frequency: "monthly",
-    daysOverdue: 5,
-    notes: "Discussed new project ideas",
-    birthday: new Date(1990, 5, 15), // June 15, 1990
-  },
-  {
-    id: "2",
-    name: "Sam Taylor",
-    frequency: "quarterly",
-    daysOverdue: 12,
-    notes: "Birthday coming up next month",
-    birthday: new Date(1985, 8, 22), // September 22, 1985
-  },
-  {
-    id: "3",
-    name: "Jamie Smith",
-    frequency: "annual",
-    daysOverdue: 3,
-    notes: "Moving to a new city",
-    birthday: new Date(1992, 2, 8), // March 8, 1992
-  },
-  {
-    id: "4",
-    name: "Morgan Lee",
-    frequency: "semi-annual",
-    daysOverdue: 20,
-    notes: "Catch up on career change",
-    birthday: new Date(1988, 11, 30), // December 30, 1988
-  },
-  {
-    id: "5",
-    name: "Casey Wilson",
-    frequency: "monthly",
-    daysOverdue: 8,
-    notes: "Follow up on coffee meetup",
-    birthday: new Date(1995, 3, 12), // April 12, 1995
-  },
-  {
-    id: "6",
-    name: "Taylor Reed",
-    frequency: "quarterly",
-    daysOverdue: 7,
-    notes: "Discuss collaboration opportunity",
-    birthday: new Date(1991, 7, 5), // August 5, 1991
-  },
-]
+interface Contact {
+  id: string
+  name: string
+  frequency: string
+  daysOverdue: number
+  notes: string
+  birthday?: string | Date | null
+  next_reminder_date?: string | Date | null
+  user_id: string
+}
 
 export default function Dashboard() {
-  const [contactsList, setContactsList] = useState(contacts)
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const [contactsList, setContactsList] = useState<Contact[]>([])
   const [isPulsing, setIsPulsing] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editingContact, setEditingContact] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [newContact, setNewContact] = useState({
     name: "",
     frequency: "monthly",
     notes: "",
     birthday: undefined as Date | undefined,
   })
+  const [currentDate, setCurrentDate] = useState(new Date())
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/')
+      toast.error('Please log in to access the dashboard')
+    }
+  }, [user, loading, router])
 
   // Add a pulsing effect every few seconds
   useEffect(() => {
@@ -96,53 +71,97 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [])
 
-  const markAsDone = (id: string) => {
-    setContactsList(contactsList.filter((contact) => contact.id !== id))
+  // Add function to fetch contacts
+  const fetchContacts = async (date: Date) => {
+    try {
+      const response = await fetch(`/api/contacts?currentDate=${date.toISOString()}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch contacts')
+      }
+      const data = await response.json()
+      setContactsList(data)
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch contacts')
+      
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        router.push('/')
+      }
+    }
   }
 
-  const handleAddContact = () => {
-    if (isEditMode && editingContact) {
-      // Update existing contact
-      setContactsList(
-        contactsList.map((contact) =>
-          contact.id === editingContact.id
-            ? {
-                ...contact,
-                name: newContact.name,
-                frequency: newContact.frequency,
-                notes: newContact.notes,
-                birthday: newContact.birthday,
-              }
-            : contact,
-        ),
-      )
-      setIsEditMode(false)
-      setEditingContact(null)
-    } else {
-      // Create a new contact with a random ID and 0 days overdue
-      const newContactWithId = {
-        id: Math.random().toString(36).substring(2, 9),
-        name: newContact.name,
-        frequency: newContact.frequency,
-        daysOverdue: 0,
-        notes: newContact.notes,
-        birthday: newContact.birthday,
+  // Fetch contacts on mount and when date changes
+  useEffect(() => {
+    if (user) {
+      fetchContacts(currentDate)
+    }
+  }, [user, currentDate])
+
+  // Update handleDateChange to use the new date
+  const handleDateChange = (newDate: Date) => {
+    setCurrentDate(newDate)
+  }
+
+  // Update handleAddContact to refresh contacts after adding
+  const handleAddContact = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newContact.name,
+          frequency: newContact.frequency,
+          notes: newContact.notes,
+          birthday: newContact.birthday?.toISOString().split('T')[0],
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to add contact')
       }
 
-      // Add the new contact to the list
-      setContactsList([newContactWithId, ...contactsList])
+      // Refresh contacts list
+      await fetchContacts(currentDate)
+
+      // Reset the form
+      setNewContact({
+        name: "",
+        frequency: "monthly",
+        notes: "",
+        birthday: undefined,
+      })
+
+      // Close the modal
+      setIsModalOpen(false)
+      toast.success('Contact added successfully!')
+    } catch (error) {
+      console.error('Error adding contact:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to add contact')
+      
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        router.push('/')
+      }
+    } finally {
+      setIsLoading(false)
     }
+  }
 
-    // Reset the form
-    setNewContact({
-      name: "",
-      frequency: "monthly",
-      notes: "",
-      birthday: undefined,
-    })
-
-    // Close the modal
-    setIsModalOpen(false)
+  // Update markAsDone to handle the API call
+  const markAsDone = async (id: string) => {
+    try {
+      // TODO: Add API endpoint to mark contact as done
+      // For now, just remove from the list
+      setContactsList(contactsList.filter((contact) => contact.id !== id))
+    } catch (error) {
+      console.error('Error marking contact as done:', error)
+      toast.error('Failed to mark contact as done')
+    }
   }
 
   const handleEditContact = (contact: any) => {
@@ -157,6 +176,21 @@ export default function Dashboard() {
     setIsModalOpen(true)
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-noise flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-700 border-t-transparent" />
+      </div>
+    )
+  }
+
+  // Not authenticated state
+  if (!user) {
+    return null
+  }
+
+  // Main dashboard render
   return (
     <div className="min-h-screen bg-noise">
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
@@ -380,21 +414,33 @@ export default function Dashboard() {
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
                 className="border-gray-200 text-cyan-700 hover:text-cyan-900 hover:bg-gray-50"
+                disabled={isLoading}
               >
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleAddContact}
-                disabled={!newContact.name}
+                disabled={!newContact.name || isLoading}
                 className="bg-cyan-700 hover:bg-cyan-800 text-white"
               >
-                {isEditMode ? "Save Changes" : "Add Contact"}
+                {isLoading ? (
+                  <>
+                    <span className="mr-2">Adding...</span>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  </>
+                ) : (
+                  'Add Contact'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </main>
+
+      {process.env.NODE_ENV === 'development' && (
+        <TimeControls onDateChange={handleDateChange} />
+      )}
     </div>
   )
 }
@@ -406,7 +452,8 @@ interface ContactCardProps {
     frequency: string
     daysOverdue: number
     notes: string
-    birthday?: Date
+    birthday?: string | Date | null
+    next_reminder_date?: string | Date | null
   }
   onMarkDone: () => void
   onEdit: () => void
@@ -427,7 +474,10 @@ function ContactCard({ contact, onMarkDone, onEdit }: ContactCardProps) {
 
   // Format birthday if it exists
   const formattedBirthday = contact.birthday
-    ? new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" }).format(contact.birthday)
+    ? new Intl.DateTimeFormat("en-US", { 
+        month: "long", 
+        day: "numeric" 
+      }).format(typeof contact.birthday === 'string' ? new Date(contact.birthday) : contact.birthday)
     : null
 
   return (

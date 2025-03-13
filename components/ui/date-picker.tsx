@@ -1,11 +1,9 @@
 "use client"
-import { format } from "date-fns"
-import { CalendarIcon } from "lucide-react"
 
+import { useState, useEffect } from "react"
+import { parse, isValid, format } from "date-fns"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 interface DatePickerProps {
   date: Date | undefined
@@ -14,31 +12,52 @@ interface DatePickerProps {
 }
 
 export function DatePicker({ date, setDate, className }: DatePickerProps) {
+  const [inputValue, setInputValue] = useState("")
+  const [inputError, setInputError] = useState(false)
+
+  // Update input value when date changes externally
+  useEffect(() => {
+    if (date) {
+      setInputValue(format(date, "MM/dd/yy"))
+    } else {
+      setInputValue("")
+    }
+  }, [date])
+
+  // Handle manual input
+  const handleInputChange = (value: string) => {
+    setInputValue(value)
+    setInputError(false)
+
+    // If empty, clear the date
+    if (!value.trim()) {
+      setDate(undefined)
+      return
+    }
+
+    // Try to parse the date
+    try {
+      const parsedDate = parse(value, "MM/dd/yy", new Date())
+      if (isValid(parsedDate)) {
+        setDate(parsedDate)
+      } else {
+        setInputError(true)
+      }
+    } catch {
+      setInputError(true)
+    }
+  }
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant={"outline"}
-          className={cn(
-            "w-full justify-start text-left font-normal border-gray-200 bg-white",
-            !date && "text-muted-foreground",
-            className,
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4 text-cyan-700" />
-          {date ? format(date, "PPP") : <span className="text-gray-400">Pick a date</span>}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={setDate}
-          initialFocus
-          className="rounded-md border-gray-200"
-        />
-      </PopoverContent>
-    </Popover>
+    <Input
+      value={inputValue}
+      onChange={(e) => handleInputChange(e.target.value)}
+      placeholder="MM/DD/YY"
+      className={cn(
+        inputError && "border-red-500 focus-visible:ring-red-500",
+        className
+      )}
+    />
   )
 }
 
