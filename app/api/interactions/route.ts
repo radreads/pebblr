@@ -38,9 +38,9 @@ export async function POST(request: Request) {
     
     // Get the interaction data from the request body
     const body = await request.json()
-    const { contactId, summary } = body
+    const { contactId, summary, interaction_date } = body
     
-    console.log('Request payload:', { contactId, summary })
+    console.log('Request payload:', { contactId, summary, interaction_date })
 
     // Validate required fields
     if (!contactId) {
@@ -65,7 +65,9 @@ export async function POST(request: Request) {
     console.log('Contact found:', contact)
 
     // Calculate the next reminder date based on the contact's frequency
-    const nextReminderDate = new Date()
+    // Use the provided interaction_date if available, otherwise use today's date
+    const baseDate = interaction_date ? new Date(interaction_date) : new Date()
+    const nextReminderDate = new Date(baseDate)
     switch (contact.frequency) {
       case 'weekly':
         nextReminderDate.setDate(nextReminderDate.getDate() + 7)
@@ -176,7 +178,8 @@ export async function POST(request: Request) {
         const interactionData: Record<string, any> = {
           user_id: session.user.id,
           contact_id: contactId,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          interaction_date: interaction_date || new Date().toISOString().split('T')[0], // Use provided date or today
         };
         
         // Add the summary field using the correct column name

@@ -25,8 +25,6 @@ import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "next/navigation"
 import { TimeControls } from "@/app/components/debug/TimeControls"
 import { InteractionModal } from "@/components/interaction-modal"
-import { TableChecker } from "@/app/components/debug/TableChecker"
-import { AddSummaryColumn } from "@/app/components/debug/AddSummaryColumn"
 
 interface Contact {
   id: string
@@ -192,7 +190,8 @@ export default function Dashboard() {
         credentials: 'include',
         body: JSON.stringify({
           contactId: interactingContact.id,
-          summary: summary || ''
+          summary: summary || '',
+          interaction_date: new Date().toISOString().split('T')[0]
         }),
       });
 
@@ -537,12 +536,10 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Debug Components */}
+      {/* Debug controls */}
       {process.env.NODE_ENV === 'development' && (
         <>
-          <TimeControls onDateChange={setCurrentDate} />
-          <TableChecker />
-          <AddSummaryColumn />
+          <TimeControls currentDate={currentDate} onDateChange={handleDateChange} />
         </>
       )}
     </div>

@@ -1,6 +1,7 @@
 {
-  "/api/contacts/route": "app/api/contacts/route.js",
   "/page": "app/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/debug/page": "app/debug/page.js",
+  "/api/contacts/all/route": "app/api/contacts/all/route.js",
   "/api/interactions/route": "app/api/interactions/route.js"
 }

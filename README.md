@@ -23,6 +23,22 @@ Pebblr helps you nurture your professional and personal relationships by providi
 - **Notification System**: Email digests and browser tab notifications
 - **Responsive Design**: Works seamlessly across desktop and mobile devices
 
+## Recent Updates
+
+### New Migration: Added interaction_date column
+
+A new migration has been added to store the actual date when interactions occur. This ensures accurate tracking of when contacts were marked as "done" and allows proper time-travel debugging.
+
+To apply this migration:
+
+1. Go to your Supabase dashboard
+2. Navigate to the SQL Editor
+3. Open the file `migrations/add_interaction_date_column.sql` from this project
+4. Copy the contents and paste into the SQL Editor
+5. Run the migration
+
+This update ensures that the next reminder date is properly calculated based on when the interaction actually occurred.
+
 ## Getting Started
 
 ### Prerequisites

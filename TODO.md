@@ -56,7 +56,7 @@ A step-by-step plan for building the Contact Reminder App with a **front-end fir
 - [ ] **Database Schema**  
   - [ X] Create tables (`users`, `contacts`, `interactions`, `user_settings`) via migrations.  
   - [X] Enum validation on frequency
-  - [ ] Confirm alignment between front-end data and database schema.
+  - [X ] Confirm alignment between front-end data and database schema.
   - [ ] Change formatting for birthdate, UI
 
 ---
