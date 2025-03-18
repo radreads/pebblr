@@ -24,6 +24,9 @@ import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
 import { useRouter } from "next/navigation"
 import { TimeControls } from "@/app/components/debug/TimeControls"
+import { InteractionModal } from "@/components/interaction-modal"
+import { TableChecker } from "@/app/components/debug/TableChecker"
+import { AddSummaryColumn } from "@/app/components/debug/AddSummaryColumn"
 
 interface Contact {
   id: string
@@ -52,6 +55,8 @@ export default function Dashboard() {
     birthday: undefined as Date | undefined,
   })
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [isInteractionModalOpen, setIsInteractionModalOpen] = useState(false)
+  const [interactingContact, setInteractingContact] = useState<Contact | null>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -152,17 +157,98 @@ export default function Dashboard() {
     }
   }
 
-  // Update markAsDone to handle the API call
+  // Update markAsDone to open the interaction modal
   const markAsDone = async (id: string) => {
-    try {
-      // TODO: Add API endpoint to mark contact as done
-      // For now, just remove from the list
-      setContactsList(contactsList.filter((contact) => contact.id !== id))
-    } catch (error) {
-      console.error('Error marking contact as done:', error)
-      toast.error('Failed to mark contact as done')
+    const contact = contactsList.find((c) => c.id === id)
+    if (contact) {
+      setInteractingContact(contact)
+      setIsInteractionModalOpen(true)
     }
   }
+
+  // Add a function to handle saving the interaction
+  const handleSaveInteraction = async (summary: string) => {
+    try {
+      if (!interactingContact) {
+        toast.error("Contact information is missing");
+        return;
+      }
+      
+      console.log('Saving interaction for contact:', interactingContact.name, 'with ID:', interactingContact.id);
+      
+      // Validate IDs before sending to API
+      if (!interactingContact.id || typeof interactingContact.id !== 'string') {
+        console.error('Invalid contact ID format:', interactingContact.id);
+        toast.error("Invalid contact ID format");
+        return;
+      }
+      
+      // Call the API to save the interaction and update the contact's next reminder date
+      const response = await fetch('/api/interactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          contactId: interactingContact.id,
+          summary: summary || ''
+        }),
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error('Server returned an invalid response');
+      }
+      
+      if (!response.ok) {
+        console.error('API error response:', responseData);
+        
+        // Extract the most useful error message
+        let errorMessage = 'Failed to save interaction';
+        if (responseData.details) {
+          if (typeof responseData.details === 'string') {
+            errorMessage = responseData.details;
+          } else if (responseData.details.message) {
+            errorMessage = responseData.details.message;
+          }
+        } else if (responseData.error) {
+          errorMessage = responseData.error;
+        } else if (responseData.message) {
+          errorMessage = responseData.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      console.log('Interaction saved successfully:', responseData);
+      
+      // Remove the contact from the list since it's been handled
+      setContactsList(contactsList.filter((contact) => contact.id !== interactingContact.id));
+      toast.success(`Marked ${interactingContact.name} as done!`);
+      
+      // Close the modal
+      setIsInteractionModalOpen(false);
+      setInteractingContact(null);
+    } catch (error) {
+      console.error('Error saving interaction:', error);
+      
+      // Show more detailed error message if available
+      let errorMessage = 'Failed to save interaction';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+      
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        router.push('/');
+      }
+    }
+  };
 
   const handleEditContact = (contact: any) => {
     setIsEditMode(true)
@@ -343,103 +429,121 @@ export default function Dashboard() {
           <Plus className="size-10 mb-1" />
           <span className="text-sm font-medium">Add Contact</span>
         </button>
-
-        {/* Add/Edit Contact Modal */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-cyan-950">{isEditMode ? "Edit Contact" : "Add New Contact"}</DialogTitle>
-              <DialogDescription className="text-cyan-700">
-                {isEditMode ? "Update contact information" : "Add someone you want to stay in touch with regularly."}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name" className="text-cyan-900">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  placeholder="Enter contact name"
-                  value={newContact.name}
-                  onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                  className="border-gray-200"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="frequency" className="text-cyan-900">
-                  Check-in Frequency
-                </Label>
-                <Select
-                  value={newContact.frequency}
-                  onValueChange={(value) => setNewContact({ ...newContact, frequency: value })}
-                >
-                  <SelectTrigger id="frequency" className="border-gray-200">
-                    <SelectValue placeholder="Select frequency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
-                    <SelectItem value="semi-annual">Semi-Annual</SelectItem>
-                    <SelectItem value="annual">Annual</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="notes" className="text-cyan-900">
-                  Notes
-                </Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add any notes about this contact"
-                  value={newContact.notes}
-                  onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
-                  className="border-gray-200 min-h-[100px]"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="birthday" className="text-cyan-900">
-                  Birthday
-                </Label>
-                <DatePicker
-                  date={newContact.birthday}
-                  setDate={(date) => setNewContact({ ...newContact, birthday: date })}
-                />
-              </div>
-            </div>
-            <DialogFooter className="sm:justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsModalOpen(false)}
-                className="border-gray-200 text-cyan-700 hover:text-cyan-900 hover:bg-gray-50"
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleAddContact}
-                disabled={!newContact.name || isLoading}
-                className="bg-cyan-700 hover:bg-cyan-800 text-white"
-              >
-                {isLoading ? (
-                  <>
-                    <span className="mr-2">Adding...</span>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  </>
-                ) : (
-                  'Add Contact'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </main>
 
+      {/* Add/Edit Contact Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-cyan-950">{isEditMode ? "Edit Contact" : "Add New Contact"}</DialogTitle>
+            <DialogDescription className="text-cyan-700">
+              {isEditMode ? "Update contact information" : "Add someone you want to stay in touch with regularly."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name" className="text-cyan-900">
+                Name
+              </Label>
+              <Input
+                id="name"
+                placeholder="Enter contact name"
+                value={newContact.name}
+                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                className="border-gray-200"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="frequency" className="text-cyan-900">
+                Check-in Frequency
+              </Label>
+              <Select
+                value={newContact.frequency}
+                onValueChange={(value) => setNewContact({ ...newContact, frequency: value })}
+              >
+                <SelectTrigger id="frequency" className="border-gray-200">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="semi-annual">Semi-Annual</SelectItem>
+                  <SelectItem value="annual">Annual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notes" className="text-cyan-900">
+                Notes
+              </Label>
+              <Textarea
+                id="notes"
+                placeholder="Add any notes about this contact"
+                value={newContact.notes}
+                onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
+                className="border-gray-200 min-h-[100px]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="birthday" className="text-cyan-900">
+                Birthday
+              </Label>
+              <DatePicker
+                date={newContact.birthday}
+                setDate={(date) => setNewContact({ ...newContact, birthday: date })}
+              />
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModalOpen(false)}
+              className="border-gray-200 text-cyan-700 hover:text-cyan-900 hover:bg-gray-50"
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddContact}
+              disabled={!newContact.name || isLoading}
+              className="bg-cyan-700 hover:bg-cyan-800 text-white"
+            >
+              {isLoading ? (
+                <>
+                  <span className="mr-2">Adding...</span>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                </>
+              ) : (
+                'Add Contact'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Interaction Modal */}
+      {interactingContact && (
+        <InteractionModal
+          isOpen={isInteractionModalOpen}
+          contactName={interactingContact.name}
+          onClose={() => {
+            // When closing without submitting, still call the API with an empty summary
+            handleSaveInteraction('');
+          }}
+          onSave={handleSaveInteraction}
+        />
+      )}
+
+      {/* Debug Components */}
       {process.env.NODE_ENV === 'development' && (
-        <TimeControls onDateChange={handleDateChange} />
+        <>
+          <TimeControls onDateChange={setCurrentDate} />
+          <TableChecker />
+          <AddSummaryColumn />
+        </>
       )}
     </div>
   )
